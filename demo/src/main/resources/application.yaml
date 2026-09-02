@@ -1,0 +1,42 @@
+spring:
+  application:
+    name: demo
+  ai:
+    google:
+      genai:
+        api-key: ${GEMINI_KEY}
+        chat:
+          options:
+            model: gemini-2.5-flash-lite
+        embedding:
+          api-key: ${GEMINI_KEY}
+          text:
+            model: text-embedding-004
+    chat:
+      memory:
+        repository:
+          jdbc:
+            initialize-schema: always
+            schema: classpath:/schema/schema-h2db.sql
+    vectorstore:
+      qdrant:
+        initialize-schema: true
+        host: localhost
+        port: 6334
+        collection-name: ragCodebase
+  datasource:
+    url: jdbc:h2:file:./chatMemory;AUTO_SERVER=true
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+      settings:
+        web-allow-others: true
+  docker:
+    compose:
+      stop:
+        command: down
