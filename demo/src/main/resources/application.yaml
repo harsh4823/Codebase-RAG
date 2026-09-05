@@ -2,16 +2,15 @@ spring:
   application:
     name: demo
   ai:
-    google:
-      genai:
-        api-key: ${GEMINI_KEY}
-        chat:
-          options:
-            model: gemini-2.5-flash-lite
-        embedding:
-          api-key: ${GEMINI_KEY}
-          text:
-            model: text-embedding-004
+    ollama:
+      base-url: http://localhost:11434
+      chat:
+        options:
+          model: llama3.1
+          temperature: 0.2
+      embedding:
+        options:
+          model: nomic-embed-text
     chat:
       memory:
         repository:
@@ -38,5 +37,6 @@ spring:
         web-allow-others: true
   docker:
     compose:
+      file: ./docker-compose.yaml
       stop:
         command: down

@@ -1,48 +1,52 @@
 package com.example.demo.controller;
 
 import com.example.demo.service.GitHubIngestionService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
-import org.springframework.ai.chat.client.advisor.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 @RestController
 @RequestMapping("/api/rag")
+@RequiredArgsConstructor
 public class CodeRagController {
 
     private final GitHubIngestionService ingestionService;
     private final ChatClient chatClient;
-
-    public CodeRagController(GitHubIngestionService ingestionService, 
-                             ChatClient.Builder chatClientBuilder,
-                             VectorStore vectorStore,
-                             ChatMemory chatMemory) { // Injects your JpaChatMemory
-        this.ingestionService = ingestionService;
-        
-        this.chatClient = chatClientBuilder
-                // Interceptor 1: Sliding Window Chat Memory
-                .defaultAdvisors(new MessageChatMemoryAdvisor(chatMemory, "default_chat", 10))
-                // Interceptor 2: Automatic RAG Retrieval & Prompt Injection
-                .defaultAdvisors(QuestionAnswerAdvisor.builder(vectorStore)
-                        .withSearchRequest(SearchRequest.defaults().withTopK(5))
-                        .build())
-                .build();
-    }
+    private final VectorStore vectorStore;
 
     @PostMapping("/load")
     public String loadRepo(@RequestParam String repoUrl) {
-        return ingestionService.ingestRepository(repoUrl);
+        return ingestionService.ingestRepo(repoUrl);
     }
 
     @GetMapping("/chat")
     public String chatWithCodebase(@RequestParam String query, @RequestParam String conversationId) {
+        List<Document> similarCode = vectorStore.similaritySearch(
+                SearchRequest.builder()
+                        .query(query)
+                        .topK(5)
+                        .build()
+        );
+
+        String contextString = similarCode.stream()
+                .map(doc->"File: " + doc.getMetadata().get("file_path") + "\n" + doc.getText())
+                .collect(Collectors.joining("\n\n---\n\n"));
+
+        System.out.println("RETRIEVED CODE:\n" + contextString);
+
         return chatClient.prompt()
                 .user(query)
-                // Dynamically bind the conversation ID for the memory advisor
-                .advisors(a -> a.param(MessageChatMemoryAdvisor.CHAT_MEMORY_CONVERSATION_ID_KEY, conversationId))
+                .system(s->s.param("code_context",contextString))
+                .advisors(a->{
+                    a.param(ChatMemory.CONVERSATION_ID,conversationId);
+                })
                 .call()
                 .content();
     }
